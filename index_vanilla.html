@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Student OS - AI-Powered Student Operating System</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-tech">
+
+  <!-- Floating Hidden Gem -->
+  <div id="floating-gem" class="floating-gem hidden" title="You found a Hidden Gem! Click to claim.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="gem-svg">
+      <path d="M6 3h12l4 6-10 12L2 9z" fill="url(#gem-gradient)"/>
+      <defs>
+        <linearGradient id="gem-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" />
+          <stop offset="50%" stop-color="#a855f7" />
+          <stop offset="100%" stop-color="#ec4899" />
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="gem-glow"></div>
+  </div>
+
+  <!-- Onboarding Modal Overlay -->
+  <div id="onboarding-overlay" class="overlay">
+    <div class="glass-modal onboarding-modal">
+      <div class="onboarding-header">
+        <div class="os-logo">
+          <div class="orb"></div>
+          <span>AURA OS</span>
+        </div>
+        <h1>Welcome to your AI Student Operating System</h1>
+        <p>Let's configure your stream, target goals, and learning profile to build your personalized ecosystem.</p>
+      </div>
+
+      <form id="onboarding-form" class="onboarding-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="student-name">Full Name</label>
+            <input type="text" id="student-name" placeholder="E.g., Ishaan Sharma" required>
+          </div>
+
+          <div class="form-group">
+            <label for="student-stream">Select Your Academic Stream</label>
+            <select id="student-stream" required>
+              <option value="tech" selected>Technology & Engineering (Coding, Web, AI)</option>
+              <option value="science">Medical & Basic Sciences (Biology, Physics, NEET)</option>
+              <option value="commerce">Commerce & Business (Finance, Economics, Startups)</option>
+              <option value="civil">Civil Services & Humanities (UPSC, Policies, History)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="target-exam">Target Examination</label>
+            <input type="text" id="target-exam" placeholder="E.g., JEE Advanced 2027, UPSC, NEET, Placement" required>
+          </div>
+
+          <div class="form-group">
+            <label for="learning-style">Primary Learning Style</label>
+            <select id="learning-style" required>
+              <option value="visual">Visual (Videos, Charts, Mindmaps)</option>
+              <option value="auditory">Auditory (Lectures, Podcasts, Discussions)</option>
+              <option value="hands-on">Hands-On (Coding, Projects, Solving Problems)</option>
+            </select>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="student-skills">Current Skillset (Comma-separated)</label>
+            <input type="text" id="student-skills" placeholder="E.g., Python, Mathematics, Logical Reasoning, Public Speaking">
+          </div>
+
+          <div class="form-group">
+            <label for="main-strength">Core Strength</label>
+            <input type="text" id="main-strength" placeholder="E.g., Analytical Solving, Memory" required>
+          </div>
+
+          <div class="form-group">
+            <label for="main-weakness">Core Weakness</label>
+            <input type="text" id="main-weakness" placeholder="E.g., Time Management, Exam Anxiety" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary submit-btn">
+          <span>Initialize My Ecosystem</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Shop Modal Overlay -->
+  <div id="shop-overlay" class="overlay hidden">
+    <div class="glass-modal shop-modal">
+      <div class="modal-header">
+        <h2>Credit Coin Rewards Store</h2>
+        <button id="close-shop-btn" class="close-btn">&times;</button>
+      </div>
+      <p class="shop-desc">Exchange your earned Credit Coins for premium academic resources, AI credits, and exclusive mentor access.</p>
+      
+      <div class="shop-grid">
+        <div class="shop-card">
+          <div class="shop-icon">🏆</div>
+          <h3>1-on-1 AI Mock Interview</h3>
+          <p>Get a rigorous 30-minute mock interview tailored to your career goal with detailed AI performance reviews.</p>
+          <div class="shop-footer">
+            <span class="price-tag">🪙 200 Coins</span>
+            <button class="btn btn-action buy-item-btn" data-item="Mock Interview" data-price="200">Redeem</button>
+          </div>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">🧠</div>
+          <h3>Premium Syllabus Cheat-Sheets</h3>
+          <p>Highly condensed, exam-focused visual revisions and formula cards for your target exams.</p>
+          <div class="shop-footer">
+            <span class="price-tag">🪙 80 Coins</span>
+            <button class="btn btn-action buy-item-btn" data-item="Cheat-Sheets" data-price="80">Redeem</button>
+          </div>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">💬</div>
+          <h3>20-Min Premium Mentor Chat</h3>
+          <p>Live messaging session with an industry-specialist mentor for customized review.</p>
+          <div class="shop-footer">
+            <span class="price-tag">🪙 150 Coins</span>
+            <button class="btn btn-action buy-item-btn" data-item="Mentor Chat" data-price="150">Redeem</button>
+          </div>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">⚡</div>
+          <h3>AI Resume Optimizer Credits</h3>
+          <p>Unlock professional grading and ATS optimization scanning for 5 resume submissions.</p>
+          <div class="shop-footer">
+            <span class="price-tag">🪙 100 Coins</span>
+            <button class="btn btn-action buy-item-btn" data-item="Resume Credits" data-price="100">Redeem</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Wrapper -->
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="orb"></div>
+        <span class="brand-text">Aura OS</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <ul>
+          <li>
+            <a href="#" class="nav-link active" data-target="dashboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="study-hub">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+              <span>Study Resources</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="timetable-balancer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <span>Timetable & Balancer</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="debate-arena">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <span>Debate & GD Arena</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="mentor-hub">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              <span>24/7 AI Mentor</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="career-predictor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              <span>Career Predictor</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-link" data-target="opportunity-hub">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span>Hidden Gems</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Sidebar Footer/Profile -->
+      <div class="sidebar-profile">
+        <div class="avatar" id="sidebar-avatar-letter">S</div>
+        <div class="profile-info">
+          <span class="name" id="sidebar-student-name">Student</span>
+          <span class="role" id="sidebar-student-level">Level 1 Novice</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Top Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+
+        <div class="header-right">
+          <!-- Dynamic Stream Switcher -->
+          <div class="stream-selector">
+            <label for="stream-switcher">Active Stream:</label>
+            <select id="stream-switcher">
+              <option value="tech">Technology & Engineering</option>
+              <option value="science">Medical & Sciences</option>
+              <option value="commerce">Commerce & Finance</option>
+              <option value="civil">Civil Services & Humanities</option>
+            </select>
+          </div>
+
+          <!-- Streak Widget -->
+          <div class="streak-widget" title="Daily study streak!">
+            <svg class="streak-fire" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span id="streak-days">7 Days</span>
+          </div>
+
+          <!-- Coin Balance Widget -->
+          <div class="coin-widget" id="coin-trigger-btn" title="Click to open Rewards Store">
+            <span class="coin-icon">🪙</span>
+            <span id="coin-balance">100</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Panel: Dashboard -->
+      <section id="dashboard" class="content-panel active">
+        <!-- News Ticker -->
+        <div class="news-ticker-container">
+          <div class="ticker-label">BREAKING NEWS</div>
+          <div class="ticker-wrap">
+            <div class="ticker" id="breaking-news-ticker">
+              Loading current affairs news according to your stream...
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Stats Grid -->
+        <div class="dashboard-grid">
+          <div class="grid-card double-width gradient-card welcome-banner">
+            <div class="banner-content">
+              <h2>Welcome back, <span id="welcome-name">Student</span>!</h2>
+              <p>Your personalized OS is synchronized with the <strong id="welcome-stream">Tech Stream</strong> and targeted on the <strong id="welcome-exam">JEE Advanced</strong>. Keep up your active habit streak to unlock new custom career templates and badges.</p>
+              <div class="quick-stats-row">
+                <div class="stat-bubble">
+                  <span class="num" id="stat-level">Lvl 1</span>
+                  <span class="lbl">Rank</span>
+                </div>
+                <div class="stat-bubble">
+                  <span class="num" id="stat-style">Visual</span>
+                  <span class="lbl">Learning Style</span>
+                </div>
+                <div class="stat-bubble">
+                  <span class="num" id="stat-coins">100</span>
+                  <span class="lbl">Credit Coins</span>
+                </div>
+              </div>
+            </div>
+            <div class="banner-graphic">
+              <div class="orbital-ring">
+                <div class="planet"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Daily Quests Checklist -->
+          <div class="grid-card quest-card">
+            <h3>Daily Coin Quests</h3>
+            <p class="subtitle">Complete study actions to replenish your credits</p>
+            <ul class="quest-list" id="quest-list">
+              <li class="quest-item" id="quest-news" data-coins="5">
+                <div class="checkbox-container">
+                  <input type="checkbox" id="chk-news" class="quest-checkbox">
+                  <label for="chk-news">Read Today's Stream News (+5 🪙)</label>
+                </div>
+              </li>
+              <li class="quest-item" id="quest-study" data-coins="10">
+                <div class="checkbox-container">
+                  <input type="checkbox" id="chk-study" class="quest-checkbox">
+                  <label for="chk-study">Complete 1 Core Reference Link (+10 🪙)</label>
+                </div>
+              </li>
+              <li class="quest-item" id="quest-debate" data-coins="15">
+                <div class="checkbox-container">
+                  <input type="checkbox" id="chk-debate" class="quest-checkbox">
+                  <label for="chk-debate">Post an Argument in Debate Arena (+15 🪙)</label>
+                </div>
+              </li>
+              <li class="quest-item" id="quest-mentor" data-coins="10">
+                <div class="checkbox-container">
+                  <input type="checkbox" id="chk-mentor" class="quest-checkbox">
+                  <label for="chk-mentor">Ask Mentor a Career Question (+10 🪙)</label>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Quick Timetable Widget -->
+          <div class="grid-card mini-timetable-card">
+            <div class="card-header">
+              <h3>Today's Focus Schedule</h3>
+              <a href="#" class="view-link" data-view-btn="timetable-balancer">Open Scheduler &rarr;</a>
+            </div>
+            <div class="schedule-summary-bar">
+              <span id="active-template-name">Feynman Focus Technique</span>
+              <span class="badge" id="balancer-badge">Balanced Mode</span>
+            </div>
+            <div class="schedule-mini-timeline" id="mini-timeline-list">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- News Feed Card -->
+          <div class="grid-card double-width stream-news-feed">
+            <h3>Stream News & Trendings</h3>
+            <p class="subtitle">Personalized industry updates to match your path</p>
+            <div class="news-list" id="news-feed-list">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: Study Hub -->
+      <section id="study-hub" class="content-panel">
+        <div class="panel-header">
+          <h2>Stream Curated Resources</h2>
+          <p>Access hand-picked video streams and authoritative websites matched directly to your current goals.</p>
+        </div>
+
+        <div class="study-container">
+          <div class="study-section">
+            <h3>Recommended YouTube Streams</h3>
+            <div class="youtube-grid" id="youtube-resources-grid">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <div class="study-section">
+            <h3>Core Reference Portals</h3>
+            <div class="websites-grid" id="website-resources-grid">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: Timetable & Balancer -->
+      <section id="timetable-balancer" class="content-panel">
+        <div class="panel-header">
+          <h2>Smart Timetable & Study-Life Balancer</h2>
+          <p>Tailor your time allocations. Use the 3-level scale to set intensity and apply scientific productivity blueprints.</p>
+        </div>
+
+        <div class="scheduler-grid">
+          <!-- Balancer Control -->
+          <div class="grid-card controls-card">
+            <h3>1. Study-Life Balance Slider</h3>
+            <p class="subtitle">Set your intensity profile to distribute study, wellness, sleep, and rest times</p>
+            
+            <div class="balancer-slider-container">
+              <div class="slider-labels">
+                <span class="label-relaxed" data-level="relaxed">Relaxed</span>
+                <span class="label-balanced active" data-level="balanced">Balanced</span>
+                <span class="label-intense" data-level="intense">Intense (Beast)</span>
+              </div>
+              <input type="range" id="balancer-slider" min="1" max="3" value="2" class="custom-slider">
+            </div>
+
+            <!-- CSS Visualization Chart of Allocation -->
+            <div class="allocation-chart-container">
+              <h4>24-Hour Time Distribution</h4>
+              <div class="chart-flex">
+                <div class="chart-bars" id="allocation-bars">
+                  <!-- JS builds vertical styled bars -->
+                </div>
+                <div class="chart-legend" id="allocation-legend">
+                  <!-- JS builds legend values -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Template Selector -->
+          <div class="grid-card templates-card">
+            <h3>2. Rhythmic Productivity Template</h3>
+            <p class="subtitle">Apply scientific schedule structures (Select from 21+ Templates)</p>
+            <div class="form-group">
+              <select id="schedule-template-select">
+                <!-- Group 1: Academic Deep Work -->
+                <optgroup label="Deep Work & Focus Blocs">
+                  <option value="feynman" selected>The Feynman Review Technique (Deep Synthesis)</option>
+                  <option value="pomodoro">Ultra-Pomodoro Sprint (25m Focus / 5m Break Cycles)</option>
+                  <option value="spaced">Spaced Repetition Sprint (Targeted Retrieval & Recall)</option>
+                  <option value="rule3">The Rule of 3 (Select 3 Major Daily Academic Wins)</option>
+                  <option value="deepfocus">Cal Newport Deep Work Cycle (90-Minute Pure Blocs)</option>
+                </optgroup>
+                <!-- Group 2: Balanced & Healthy Schedules -->
+                <optgroup label="Study-Life Balance Layouts">
+                  <option value="circadian">Circadian Ryhthm Sync (Aligning Study with Peak Alertness)</option>
+                  <option value="hybrid888">8-8-8 Balanced Blueprint (8h Study, 8h Leisure, 8h Sleep)</option>
+                  <option value="wellnessfirst">Mental Wellness Layout (Interleaved Cardio & Meditation)</option>
+                  <option value="spacedrest">Rest-Accelerated Sprinting (Extended recovery margins)</option>
+                </optgroup>
+                <!-- Group 3: High Intensity / Exam Cranking -->
+                <optgroup label="Beast Mode & Exam Prep">
+                  <option value="examcram">Extreme Exam Cram Mode (Active recall heavy, 10h+ limit)</option>
+                  <option value="coderush">Code & Build Intensive (Continuous logic loops & debugging)</option>
+                  <option value="pastpapers">Mock Marathon Sequence (3-hour full length papers + review)</option>
+                  <option value="weaknessfix">Weakness-Targeted Decimation (Focus strictly on deficits)</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="template-explanation" id="template-explanation-text">
+              Explanation of selected template goes here...
+            </div>
+          </div>
+
+          <!-- Generated Full Daily Timetable -->
+          <div class="grid-card double-width full-timetable-card">
+            <h3>3. Personalized 24h Generated Timeline</h3>
+            <p class="subtitle">Your customized schedule blueprint based on your parameters</p>
+            <div class="timetable-timeline" id="full-timetable-timeline">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: Debate & GD Arena -->
+      <section id="debate-arena" class="content-panel">
+        <div class="panel-header">
+          <h2>AI Debate Arena & GD Hub</h2>
+          <p>Boost your vocabulary, logic, and analytical speed. Engage with other bots and get AI-graded performance analytics.</p>
+        </div>
+
+        <div class="debate-layout">
+          <!-- Left side: Conversation Arena -->
+          <div class="debate-chat-panel">
+            <div class="debate-topic-select-row">
+              <label for="debate-topic-selector">Active Debate Topic:</label>
+              <select id="debate-topic-selector">
+                <!-- Loaded dynamically by active stream -->
+              </select>
+              <button id="reset-debate-btn" class="btn btn-secondary btn-sm">Reset</button>
+            </div>
+
+            <!-- Dialogue log -->
+            <div class="debate-log" id="debate-log-container">
+              <!-- Dynamic dialog loads here -->
+            </div>
+
+            <!-- Inputs -->
+            <div class="debate-input-row">
+              <textarea id="user-argument-input" placeholder="Type your constructive point here to address the topic..." rows="2"></textarea>
+              <button id="submit-argument-btn" class="btn btn-primary">
+                <span>Submit Point</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right side: AI Grader / Feedback Card -->
+          <div class="debate-feedback-panel">
+            <div class="glass-card feedback-card">
+              <h3>AI Performance Evaluation</h3>
+              <p class="subtitle font-sm">Submit your debate argument to generate scores</p>
+              
+              <div class="feedback-stats-grid" id="feedback-stats-view">
+                <div class="feedback-metric">
+                  <span class="label">Clarity & Eloquence</span>
+                  <div class="progress-bar-bg"><div class="progress-bar-fill" id="metric-clarity" style="width: 0%;"></div></div>
+                  <span class="score-num" id="score-clarity">--</span>
+                </div>
+                <div class="feedback-metric">
+                  <span class="label">Critical Thinking</span>
+                  <div class="progress-bar-bg"><div class="progress-bar-fill" id="metric-thinking" style="width: 0%;"></div></div>
+                  <span class="score-num" id="score-thinking">--</span>
+                </div>
+                <div class="feedback-metric">
+                  <span class="label">Structure & Persuasion</span>
+                  <div class="progress-bar-bg"><div class="progress-bar-fill" id="metric-persuasion" style="width: 0%;"></div></div>
+                  <span class="score-num" id="score-persuasion">--</span>
+                </div>
+                <div class="feedback-metric">
+                  <span class="label">Confidence Score</span>
+                  <div class="progress-bar-bg"><div class="progress-bar-fill" id="metric-confidence" style="width: 0%;"></div></div>
+                  <span class="score-num" id="score-confidence">--</span>
+                </div>
+              </div>
+
+              <div class="feedback-detailed-text" id="feedback-grade-text">
+                <div class="empty-state">
+                  <div class="icon">📊</div>
+                  <p>Your constructive criticism and logic breakdown will appear here post contribution.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: AI Mentor Hub -->
+      <section id="mentor-hub" class="content-panel">
+        <div class="panel-header">
+          <h2>24/7 Specialized AI Mentors</h2>
+          <p>Consult with dedicated advisors for custom syllabus advice, mental health coaching, or detailed target exam routines.</p>
+        </div>
+
+        <div class="mentor-layout">
+          <!-- Mentor Profiles List -->
+          <div class="mentor-selection-bar" id="mentor-profiles-list">
+            <!-- Renders profiles dynamically via JS -->
+          </div>
+
+          <!-- Chat Console -->
+          <div class="mentor-chat-console">
+            <div class="chat-header">
+              <div class="mentor-avatar-icon" id="active-mentor-avatar">M</div>
+              <div class="mentor-meta">
+                <h3 id="active-mentor-name">AI Mentor</h3>
+                <span class="status-indicator online" id="active-mentor-role">Syllabus & Strategy Expert</span>
+              </div>
+            </div>
+
+            <div class="chat-log" id="mentor-chat-log">
+              <!-- Initial message loads dynamically -->
+            </div>
+
+            <div class="chat-input-bar">
+              <input type="text" id="mentor-chat-input" placeholder="Type your academic or career doubt here...">
+              <button id="mentor-chat-submit" class="btn btn-primary">Send</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: Career Predictor -->
+      <section id="career-predictor" class="content-panel">
+        <div class="panel-header">
+          <h2>AI Career Path Predictor & Roadmap</h2>
+          <p>Input your skills, academic records, and career aspirations to generate comprehensive primary and backup roadmaps.</p>
+        </div>
+
+        <div class="predictor-grid">
+          <!-- Form Parameters -->
+          <div class="grid-card profile-inputs-card">
+            <h3>Enter Performance Factors</h3>
+            <p class="subtitle">Tune skills and interest inputs for AI projection</p>
+
+            <div class="form-group">
+              <label for="predict-skills">Your Active Skills (comma-separated)</label>
+              <textarea id="predict-skills" rows="3" placeholder="Python, HTML, Data Structures, Mathematics..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Select Primary Interests</label>
+              <div class="checkbox-group">
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="coding" checked> System Coding & Tech</label>
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="research"> Academic Research</label>
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="finance"> Finance & Valuation</label>
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="public"> Public Administration & Policy</label>
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="design"> UI/UX Design & Branding</label>
+                <label class="chk-lbl"><input type="checkbox" class="interest-chk" value="teaching"> Mentoring & Content Writing</label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="academic-grade-select">Average Performance Grade</label>
+              <select id="academic-grade-select">
+                <option value="9">Top-tier Grade (A+ / CGPA > 9.0)</option>
+                <option value="8" selected>Strong Standing (A / CGPA 8.0 - 9.0)</option>
+                <option value="7">Average Standing (B / CGPA 7.0 - 8.0)</option>
+                <option value="6">Developing Standing (CGPA &lt; 7.0)</option>
+              </select>
+            </div>
+
+            <button id="calculate-predictor-btn" class="btn btn-primary full-width">Generate Career Analysis</button>
+          </div>
+
+          <!-- Predictions Output -->
+          <div class="grid-card output-results-card">
+            <h3>AI Prediction Results</h3>
+            <p class="subtitle">Primary and alternative career path alignment matrices</p>
+
+            <div class="predictions-results-flex" id="prediction-results-content">
+              <div class="empty-state">
+                <div class="icon">🔮</div>
+                <p>Submit your parameters to output career fits and backup blueprints.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Roadmap Timeline -->
+          <div class="grid-card double-width roadmap-timeline-card hidden" id="roadmap-card">
+            <div class="roadmap-header">
+              <h3>Custom Career Preparation Roadmap</h3>
+              <div class="roadmap-selector">
+                <button id="btn-show-primary" class="btn btn-action active">Primary Goal Track</button>
+                <button id="btn-show-backup" class="btn btn-action">Backup Goal Track</button>
+              </div>
+            </div>
+            <p class="subtitle">Complete the milestone checks below. Earn coins (+15 🪙) for completing achievements!</p>
+            
+            <div class="timeline-wrapper" id="roadmap-timeline-steps">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel: Opportunity Hub (Hidden Gems) -->
+      <section id="opportunity-hub" class="content-panel">
+        <div class="panel-header">
+          <h2>Hidden Gems & Opportunities Finder</h2>
+          <p>Never miss valuable scholarship opportunities, obscure internships, hackathons, and certifications. We track deadlines so you don't have to.</p>
+        </div>
+
+        <div class="opportunities-container">
+          <div class="filter-bar">
+            <button class="btn btn-filter active" data-filter="all">All Opportunities</button>
+            <button class="btn btn-filter" data-filter="scholarship">Scholarships & Schemes</button>
+            <button class="btn btn-filter" data-filter="internship">Niche Internships</button>
+            <button class="btn btn-filter" data-filter="hackathon">Hackathons & Competitions</button>
+            <button class="btn btn-filter" data-filter="certification">Valuable Certs</button>
+          </div>
+
+          <div class="opportunities-grid" id="opportunities-grid-list">
+            <!-- Renders dynamically based on stream and filter -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- App Logic script -->
+  <script src="app.js"></script>
+</body>
+</html>
