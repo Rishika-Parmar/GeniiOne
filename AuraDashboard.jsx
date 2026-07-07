@@ -416,6 +416,16 @@ export default function AuraDashboard() {
   const [debateInput, setDebateInput] = useState("");
   const [debateFeedback, setDebateFeedback] = useState(null);
 
+  // Custom Timer, Entry & Team allocation States
+  const [inDebate, setInDebate] = useState(false);
+  const [simStage, setSimStage] = useState(0);
+  const [debateParticipants, setDebateParticipants] = useState([]);
+  const [debateTimeRemaining, setDebateTimeRemaining] = useState(900); // 15 minutes (900 seconds)
+  const [breakTimeRemaining, setBreakTimeRemaining] = useState(300);   // 5 minutes (300 seconds)
+  const [isBreakActive, setIsBreakActive] = useState(false);
+  const [isJudging, setIsJudging] = useState(false);
+  const [judgeResult, setJudgeResult] = useState(null);
+
   // Shop overlay
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isLogoOverlayOpen, setIsLogoOverlayOpen] = useState(false);
@@ -503,10 +513,10 @@ export default function AuraDashboard() {
 
   // --- Dynamic Level Mapping ---
   const levelData = useMemo(() => {
-    let lvl = 1;
+    let lvl = 3;
     let rank = "Novice Scholar";
     if (coins >= 500) {
-      lvl = 3;
+      lvl = 1;
       rank = "Master Scholar";
     } else if (coins >= 250) {
       lvl = 2;
@@ -724,6 +734,13 @@ export default function AuraDashboard() {
   // --- Debate Simulator Engine ---
   const activeDebateTopic = currentStreamDb.debateTopics[selectedDebateTopicIndex] || currentStreamDb.debateTopics[0];
 
+  const { entryFee, winReward } = useMemo(() => {
+    const lvl = levelData.level;
+    if (lvl === 1) return { entryFee: 30, winReward: 50 };
+    if (lvl === 2) return { entryFee: 15, winReward: 30 };
+    return { entryFee: 5, winReward: 10 }; // lvl === 3 is default
+  }, [levelData.level]);
+
   const handleSelectTopic = (index) => {
     setSelectedDebateTopicIndex(index);
     setDebateFeedback(null);
@@ -739,24 +756,200 @@ export default function AuraDashboard() {
       [topicText]: initialMsgs
     }));
 
-    // Spawn bots
-    const botParticipants = [
-      { name: "Aarav (Tech Aspirant)", body: `In my view, this topic is critical. Looking at modern deployment stats, automation is taking over routine pipelines. Consequently, junior positions must evolve or disappear.` },
-      { name: "Sophia (AI Ethics Expert)", body: `However, Aarav, we shouldn't neglect the necessity of human verification. Pure algorithmic setups fail to grasp product nuances. Therefore, humans remain highly vital.` }
+    if (inDebate) {
+      setSimStage(0);
+      setDebateParticipants([
+        {
+          name: "You (Student)",
+          avatar: "👤",
+          isUser: true,
+          team: 1,
+          mic: false,
+          camera: false
+        }
+      ]);
+    }
+  };
+
+  const handleJoinDebate = () => {
+    if (coins < entryFee) {
+      showToast("❌ Entry Refused", `You need at least ${entryFee} Credit Coins for Level ${levelData.level} entry.`);
+      return;
+    }
+    
+    setCoins(prev => prev - entryFee);
+    setInDebate(true);
+    setSimStage(0);
+    setDebateTimeRemaining(900); // 15 mins
+    setIsBreakActive(false);
+    setJudgeResult(null);
+
+    // Reset debate history and select topic
+    handleSelectTopic(selectedDebateTopicIndex);
+    
+    // Set up user as the first participant in Team 1
+    setDebateParticipants([
+      {
+        name: "You (Student)",
+        avatar: "👤",
+        isUser: true,
+        team: 1,
+        mic: false,
+        camera: false
+      }
+    ]);
+    
+    showToast("🪙 Paid Entry Fee", `Paid ${entryFee} coins. Welcome to Level ${levelData.level} Arena! You are on Team 1.`);
+  };
+
+  const handleEndDebateAndJudge = () => {
+    if (isJudging) return;
+    setIsJudging(true);
+    setDebateFeedback(null);
+    
+    showToast("🧠 AI Judge Evaluating", "The AI Judge is analyzing arguments, structure, and team delivery...");
+    
+    setTimeout(() => {
+      setIsJudging(false);
+      setIsBreakActive(true);
+      setBreakTimeRemaining(300); // 5 minutes break
+
+      // Determine winning team - let's make Team 1 (user's team) win to show the coin reward!
+      const winningTeam = 1;
+      
+      // Award coins to user since they are in Team 1
+      setCoins(prev => prev + winReward);
+      
+      setJudgeResult({
+        winningTeam,
+        verdict: `Team 1 (Pro-Topic) won the debate! They structured their arguments with clear connections and presented exceptional critical assertions. Each member of Team 1 receives a reward of ${winReward} Credit Coins!`,
+        rewardAwarded: winReward
+      });
+      
+      showToast("🏆 Team 1 Wins! (+" + winReward + " 🪙)", `AI Judge awarded ${winReward} coins to each Team 1 member!`);
+    }, 2500);
+  };
+
+  const handleNextDebateCycle = () => {
+    setIsBreakActive(false);
+    setInDebate(false);
+    setSimStage(0);
+    setJudgeResult(null);
+    setDebateParticipants([]);
+    
+    // Cycle to next debate topic
+    const nextIndex = (selectedDebateTopicIndex + 1) % currentStreamDb.debateTopics.length;
+    setSelectedDebateTopicIndex(nextIndex);
+    
+    showToast("🔔 New Debate Cycle Active", "Break ended. Pay the entry fee to join the new topic debate!");
+  };
+
+  const handleSkipTimer = () => {
+    if (inDebate && !isBreakActive) {
+      setDebateTimeRemaining(5); // Speed up to 5 seconds remaining
+      showToast("⏩ Timer Speedup", "Fast-forwarding to the end of the debate...");
+    } else if (isBreakActive) {
+      setBreakTimeRemaining(5); // Speed up to 5 seconds remaining
+      showToast("⏩ Timer Speedup", "Fast-forwarding to the end of the break...");
+    }
+  };
+
+  const handleSimulateThreeUsers = () => {
+    if (simStage !== 0) return;
+    
+    const newParticipants = [
+      { name: "Aarav (Tech Aspirant)", avatar: "👨‍💻", isUser: false, team: 2 },
+      { name: "Sophia (AI Ethics Expert)", avatar: "👩‍⚖️", isUser: false, team: 3 },
+      { name: "Zoe (Study Strategist)", avatar: "👩‍🎓", isUser: false, team: 1 }
     ];
 
-    botParticipants.forEach((bot, idx) => {
+    setDebateParticipants(prev => [...prev, ...newParticipants]);
+    setSimStage(1);
+
+    const topicText = activeDebateTopic;
+    const botMessages = [
+      { sender: "Aarav (Tech Aspirant)", body: "In my view, this topic is critical. Looking at modern deployment stats, automation is taking over routine pipelines. Consequently, junior positions must evolve or disappear." },
+      { sender: "Sophia (AI Ethics Expert)", body: "However, Aarav, we shouldn't neglect the necessity of human verification. Pure algorithmic setups fail to grasp product nuances. Therefore, humans remain highly vital." },
+      { sender: "Zoe (Study Strategist)", body: "To succeed, we need a strategic hybrid model. We must integrate AI to accelerate our learning rather than seeing it as a threat." }
+    ];
+
+    botMessages.forEach((msg, idx) => {
       setTimeout(() => {
         setDebateHistory(prev => {
           const list = prev[topicText] || [];
           return {
             ...prev,
-            [topicText]: [...list, { sender: bot.name, body: bot.body }]
+            [topicText]: [...list, msg]
           };
         });
-      }, 700 * (idx + 1));
+      }, 600 * (idx + 1));
     });
+
+    showToast("👥 3 Users Entered", "Aarav (Team 2), Sophia (Team 3), and Zoe (Team 1) have joined the debate.");
   };
+
+  const handleSimulateTwoMoreUsers = () => {
+    if (simStage !== 1) return;
+
+    const newParticipants = [
+      { name: "Ishaan (AI Developer)", avatar: "🤖", isUser: false, team: 3 },
+      { name: "Ananya (Research Specialist)", avatar: "👩‍🔬", isUser: false, team: 1 }
+    ];
+
+    setDebateParticipants(prev => [...prev, ...newParticipants]);
+    setSimStage(2);
+
+    const topicText = activeDebateTopic;
+    const newMessages = [
+      { sender: "Ishaan (AI Developer)", body: "AI agents are powerful tools, but they cannot replace the creative problem solving of junior engineers. We are scaling productivity, not replacing minds." },
+      { sender: "Ananya (Research Specialist)", body: "Empirical studies in human-AI collaboration prove that hybrid teams produce 40% fewer errors than AI or humans working alone." }
+    ];
+
+    newMessages.forEach((msg, idx) => {
+      setTimeout(() => {
+        setDebateHistory(prev => {
+          const list = prev[topicText] || [];
+          return {
+            ...prev,
+            [topicText]: [...list, msg]
+          };
+        });
+      }, 600 * (idx + 1));
+    });
+
+    showToast("👥 2 More Users Entered", "Ishaan (Team 3) and Ananya (Team 1) have joined the debate.");
+  };
+
+  // Timer Countdown Effect
+  useEffect(() => {
+    let timer = null;
+    if (inDebate && !isBreakActive) {
+      timer = setInterval(() => {
+        setDebateTimeRemaining(prev => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    } else if (isBreakActive) {
+      timer = setInterval(() => {
+        setBreakTimeRemaining(prev => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [inDebate, isBreakActive]);
+
+  // Effect to handle debate timer ending
+  useEffect(() => {
+    if (inDebate && !isBreakActive && debateTimeRemaining === 0) {
+      handleEndDebateAndJudge();
+    }
+  }, [debateTimeRemaining, inDebate, isBreakActive]);
+
+  // Effect to handle break timer ending
+  useEffect(() => {
+    if (isBreakActive && breakTimeRemaining === 0) {
+      handleNextDebateCycle();
+    }
+  }, [breakTimeRemaining, isBreakActive]);
 
   // Run on mount or stream change to reset debate topic
   useEffect(() => {
@@ -1896,361 +2089,699 @@ export default function AuraDashboard() {
 
         {/* --- VIEW: Debate & GD Arena --- */}
         {currentView === 'debate-arena' && (
-          <section className="content-panel active">
-            
-            {/* Top: 4-Column Media & Participant Grid */}
-            <div className="debate-participants-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-              
-              {/* Box 1: You (Student User) */}
-              <div className="participant-card user-card" style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-sidebar)', padding: '16px', display: 'flex', flexDirection: 'column', height: '240px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>You (Student)</span>
-                  <span className={`media-badge ${userMedia.mic ? 'active' : ''}`} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: userMedia.mic ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: userMedia.mic ? '#10b981' : '#ef4444' }}>
-                    {userMedia.mic ? 'Mic Active' : 'Muted'}
-                  </span>
-                </div>
-                
-                {/* Webcam Video Box */}
-                <div className="video-viewport" style={{ flex: 1, position: 'relative', borderRadius: '8px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {userMedia.camera ? (
-                    <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ fontSize: '32px' }}>👤</div>
-                  )}
+          <section className="content-panel active" style={{ padding: '0 0 20px 0' }}>
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes voicePulse {
+                0%, 100% { height: 4px; }
+                50% { height: 14px; }
+              }
+              .voice-wave-bar .wave-bar {
+                animation: voicePulse 1s infinite ease-in-out alternate;
+              }
+              .voice-wave-bar .wave-bar:nth-child(2) {
+                animation-delay: 0.15s;
+              }
+              .voice-wave-bar .wave-bar:nth-child(3) {
+                animation-delay: 0.3s;
+              }
+            `}</style>
 
-                  {/* Floating Stickers Overlay for You */}
-                  {floatingStickers.filter(s => s.sender === 'You').map(st => (
-                    <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '36px', animation: 'floatUp 2s ease-in-out forwards' }}>
-                      {st.emoji}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Personal Media Controls */}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
-                  <button 
-                    className={`btn btn-sm ${userMedia.mic ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setUserMedia(prev => ({ ...prev, mic: !prev.mic }))}
-                    title={userMedia.mic ? 'Mute Microphone' : 'Unmute Microphone'}
-                    style={{ padding: '6px 12px' }}
-                  >
-                    🎤 {userMedia.mic ? 'Mic On' : 'Mic Off'}
-                  </button>
-                  <button 
-                    className={`btn btn-sm ${userMedia.camera ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setUserMedia(prev => ({ ...prev, camera: !prev.camera }))}
-                    title={userMedia.camera ? 'Turn Off Camera' : 'Turn On Camera'}
-                    style={{ padding: '6px 12px' }}
-                  >
-                    📷 {userMedia.camera ? 'Cam On' : 'Cam Off'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Box 2: Aarav */}
-              <div className="participant-card" style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-sidebar)', padding: '16px', display: 'flex', flexDirection: 'column', height: '240px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>Aarav (Tech)</span>
-                  <span style={{ display: 'flex', gap: '4px' }}>
-                    {blockedStates["Aarav (Tech Aspirant)"].voice && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Audio Muted</span>}
-                    {blockedStates["Aarav (Tech Aspirant)"].video && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Cam Blocked</span>}
-                  </span>
-                </div>
-
-                {/* Video feed or blocked screen */}
-                <div className="video-viewport" style={{ flex: 1, position: 'relative', borderRadius: '8px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {blockedStates["Aarav (Tech Aspirant)"].video ? (
-                    <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '20px' }}>🚫</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '4px' }}>VISUALS BLOCKED</span>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '32px' }}>👨‍💻</div>
-                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '8px' }}>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Floating Stickers Overlay */}
-                  {floatingStickers.filter(s => s.sender === 'Aarav (Tech Aspirant)').map(st => (
-                    <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '36px', animation: 'floatUp 2s ease-in-out forwards' }}>
-                      {st.emoji}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Moderation Controls */}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '12px', justifyContent: 'center' }}>
-                  <button className={`btn btn-xs ${blockedStates["Aarav (Tech Aspirant)"].voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Aarav (Tech Aspirant)", "voice")} title="Mute/Unmute voice track">
-                    {blockedStates["Aarav (Tech Aspirant)"].voice ? 'Unmute Voice' : 'Mute Voice'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Aarav (Tech Aspirant)"].text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Aarav (Tech Aspirant)", "text")} title="Mute/Unmute chat text">
-                    {blockedStates["Aarav (Tech Aspirant)"].text ? 'Show Text' : 'Mute Text'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Aarav (Tech Aspirant)"].video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Aarav (Tech Aspirant)", "video")} title="Block/Unblock video stream">
-                    {blockedStates["Aarav (Tech Aspirant)"].video ? 'Show Video' : 'Hide Video'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Box 3: Sophia */}
-              <div className="participant-card" style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-sidebar)', padding: '16px', display: 'flex', flexDirection: 'column', height: '240px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>Sophia (Ethics)</span>
-                  <span style={{ display: 'flex', gap: '4px' }}>
-                    {blockedStates["Sophia (AI Ethics Expert)"].voice && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Muted</span>}
-                    {blockedStates["Sophia (AI Ethics Expert)"].video && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Blocked</span>}
-                  </span>
-                </div>
-
-                {/* Video feed or blocked screen */}
-                <div className="video-viewport" style={{ flex: 1, position: 'relative', borderRadius: '8px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {blockedStates["Sophia (AI Ethics Expert)"].video ? (
-                    <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '20px' }}>🚫</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '4px' }}>VISUALS BLOCKED</span>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '32px' }}>👩‍⚖️</div>
-                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '8px' }}>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Floating Stickers Overlay */}
-                  {floatingStickers.filter(s => s.sender === 'Sophia (AI Ethics Expert)').map(st => (
-                    <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '36px', animation: 'floatUp 2s ease-in-out forwards' }}>
-                      {st.emoji}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Moderation Controls */}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '12px', justifyContent: 'center' }}>
-                  <button className={`btn btn-xs ${blockedStates["Sophia (AI Ethics Expert)"].voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Sophia (AI Ethics Expert)", "voice")} title="Mute/Unmute voice track">
-                    {blockedStates["Sophia (AI Ethics Expert)"].voice ? 'Unmute' : 'Mute'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Sophia (AI Ethics Expert)"].text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Sophia (AI Ethics Expert)", "text")} title="Mute/Unmute chat text">
-                    {blockedStates["Sophia (AI Ethics Expert)"].text ? 'Show' : 'Mute'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Sophia (AI Ethics Expert)"].video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Sophia (AI Ethics Expert)", "video")} title="Block/Unblock video stream">
-                    {blockedStates["Sophia (AI Ethics Expert)"].video ? 'Show' : 'Hide'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Box 4: Zoe */}
-              <div className="participant-card" style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-sidebar)', padding: '16px', display: 'flex', flexDirection: 'column', height: '240px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)' }}>Zoe (Strategy)</span>
-                  <span style={{ display: 'flex', gap: '4px' }}>
-                    {blockedStates["Zoe (Study Strategist)"].voice && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Muted</span>}
-                    {blockedStates["Zoe (Study Strategist)"].video && <span style={{ fontSize: '10px', padding: '2px 4px', borderRadius: '3px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Blocked</span>}
-                  </span>
-                </div>
-
-                {/* Video feed or blocked screen */}
-                <div className="video-viewport" style={{ flex: 1, position: 'relative', borderRadius: '8px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {blockedStates["Zoe (Study Strategist)"].video ? (
-                    <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '20px' }}>🚫</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '4px' }}>VISUALS BLOCKED</span>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '32px' }}>👩‍🎓</div>
-                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '8px' }}>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                        <div className="wave-bar"></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Floating Stickers Overlay */}
-                  {floatingStickers.filter(s => s.sender === 'Zoe (Study Strategist)').map(st => (
-                    <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '36px', animation: 'floatUp 2s ease-in-out forwards' }}>
-                      {st.emoji}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Moderation Controls */}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '12px', justifyContent: 'center' }}>
-                  <button className={`btn btn-xs ${blockedStates["Zoe (Study Strategist)"].voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Zoe (Study Strategist)", "voice")} title="Mute/Unmute voice track">
-                    {blockedStates["Zoe (Study Strategist)"].voice ? 'Unmute' : 'Mute'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Zoe (Study Strategist)"].text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Zoe (Study Strategist)", "text")} title="Mute/Unmute chat text">
-                    {blockedStates["Zoe (Study Strategist)"].text ? 'Show' : 'Mute'}
-                  </button>
-                  <button className={`btn btn-xs ${blockedStates["Zoe (Study Strategist)"].video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState("Zoe (Study Strategist)", "video")} title="Block/Unblock video stream">
-                    {blockedStates["Zoe (Study Strategist)"].video ? 'Show' : 'Hide'}
-                  </button>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Bottom: Main Discussion Chat Column & AI Score Evaluator Column */}
-            <div className="debate-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px' }}>
-              
-              <div className="debate-chat-column" style={{ display: 'flex', flexDirection: 'column', height: '620px' }}>
-                <div className="grid-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px' }}>
+            {/* Lobby / Welcome Screen (Not Joined, and Not in Break) */}
+            {!inDebate && !isBreakActive && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '65vh', padding: '20px' }}>
+                <div className="grid-card" style={{ maxWidth: '650px', width: '100%', textAlign: 'center', padding: '36px', borderRadius: '16px', border: '1px solid var(--border-color)', background: 'var(--bg-sidebar)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', backdropFilter: 'blur(12px)' }}>
+                  <div style={{ fontSize: '64px', marginBottom: '20px', animation: 'robotFloat 3s infinite ease-in-out' }}>🎙️</div>
+                  <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '10px', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AI Debate Arena & GD Hub</h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6', marginBottom: '24px' }}>
+                    Step into the arena to debate complex stream-specific policy and tech topics against AI scholars. You will be dynamically allocated to a team to keep team sizes balanced. Speak or type to win coins!
+                  </p>
                   
-                  {/* Topic Selector Panel */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
-                    <label htmlFor="debate-topic-selector" style={{ fontWeight: '600', whiteSpace: 'nowrap' }}>Debate Focus:</label>
-                    <select 
-                      id="debate-topic-selector" 
-                      style={{ flex: 1, padding: '8px', borderRadius: '8px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      value={selectedDebateTopicIndex}
-                      onChange={(e) => handleSelectTopic(Number(e.target.value))}
-                    >
-                      {currentStreamDb.debateTopics.map((topic, idx) => (
-                        <option key={idx} value={idx}>{topic}</option>
-                      ))}
-                    </select>
-                    <button className="btn btn-secondary btn-sm" onClick={() => handleSelectTopic(selectedDebateTopicIndex)}>
-                      Reset
-                    </button>
-                    
-                    {/* Test Safety Button */}
-                    <button className="btn btn-secondary btn-sm" onClick={handleSimulateAbuse} style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2' }}>
-                      ⚠️ Safety Test
-                    </button>
+                  {/* Current Level display */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '20px', background: 'var(--accent-gradient-glow)', border: '1px solid rgba(6, 182, 212, 0.2)', marginBottom: '24px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Your Level: Level {levelData.level} ({levelData.rank})</span>
                   </div>
 
-                  {/* Warning banner if abusive content detected */}
-                  {debateWarning && (
-                    <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.15)', border: '1px dashed #ef4444', borderRadius: '6px', fontSize: '12px', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>🚨 {debateWarning}</span>
-                      <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setDebateWarning(null)}>Dismiss</button>
+                  {/* Level-based Entry Table */}
+                  <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '28px' }}>
+                    <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px', fontSize: '14px', fontWeight: '700', textAlign: 'left' }}>🏷️ Level-Based Entry Protocols:</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {[
+                        { lvl: 1, title: "Level 1 (Master Scholar, coins >= 500)", fee: 30, reward: 50 },
+                        { lvl: 2, title: "Level 2 (Intermediate Academic, 250-499 coins)", fee: 15, reward: 30 },
+                        { lvl: 3, title: "Level 3 (Novice Scholar, coins < 250)", fee: 5, reward: 10 }
+                      ].map((item) => (
+                        <div key={item.lvl} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: levelData.level === item.lvl ? 'rgba(6, 182, 212, 0.08)' : 'transparent', border: levelData.level === item.lvl ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid transparent' }}>
+                          <span style={{ fontSize: '12px', fontWeight: levelData.level === item.lvl ? 'bold' : 'normal', color: levelData.level === item.lvl ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                            {item.title} {levelData.level === item.lvl && "👈"}
+                          </span>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: levelData.level === item.lvl ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                            Entry: {item.fee} 🪙 / Win: {item.reward} 🪙
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Chat Log Container */}
-                  <div 
-                    className="chat-log-container" 
-                    id="debate-log-container"
-                    style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' }}
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={handleJoinDebate}
+                    style={{ padding: '12px 28px', fontSize: '15px', fontWeight: 'bold', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 8px 16px rgba(6, 182, 212, 0.2)' }}
                   >
-                    {(debateHistory[activeDebateTopic] || []).map((msg, idx) => {
-                      let bubbleClass = "bot-bubble";
-                      if (msg.sender === "You") bubbleClass = "user-bubble";
-                      if (msg.sender === "System") bubbleClass = "system-bubble";
-                      
-                      // Check if text is blocked
-                      const isBlocked = blockedStates[msg.sender]?.text;
-                      
-                      return (
-                        <div className={`chat-bubble ${bubbleClass}`} key={idx} style={{ position: 'relative' }}>
-                          {msg.sender !== "System" && (
-                            <div className="bubble-sender" style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '2px', color: msg.sender === 'You' ? '#a855f7' : 'var(--accent-primary)' }}>
-                              {msg.sender}
+                    Pay {entryFee} 🪙 & Enter Debate Arena
+                  </button>
+                  
+                  <div style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    Your current balance: <strong style={{ color: '#fbbf24' }}>🪙 {coins} Coins</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Timed Debate Arena and Break Views */}
+            {(inDebate || isBreakActive) && (
+              <>
+                {/* Timer Banner / Notification Status */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  background: isBreakActive ? 'rgba(234, 179, 8, 0.08)' : 'rgba(6, 182, 212, 0.08)',
+                  border: isBreakActive ? '1px solid rgba(234, 179, 8, 0.2)' : '1px solid rgba(6, 182, 212, 0.2)',
+                  marginBottom: '20px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '20px' }}>{isBreakActive ? '☕' : '⏱️'}</span>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {isBreakActive ? 'Debate Break Interval' : 'Active Debate Session'}
+                      </strong>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {isBreakActive 
+                          ? 'Relax and review the results. Next debate starting soon.' 
+                          : `Level ${levelData.level} Debate | Stakes: ${entryFee} entry fee, ${winReward} win reward.`
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '800', fontFamily: 'monospace', color: isBreakActive ? '#eab308' : 'var(--accent-primary)', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      {isBreakActive 
+                        ? `Break: ${Math.floor(breakTimeRemaining / 60)}:${String(breakTimeRemaining % 60).padStart(2, '0')}`
+                        : `Time Left: ${Math.floor(debateTimeRemaining / 60)}:${String(debateTimeRemaining % 60).padStart(2, '0')}`
+                      }
+                    </div>
+                    
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleSkipTimer}
+                      title="Skip timer cycles for testing"
+                      style={{ fontSize: '11px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      ⏩ Skip
+                    </button>
+                  </div>
+                </div>
+
+                {/* Top: 3-Column Team Grid */}
+                <div className="debate-teams-grid">
+                  
+                  {/* Team 1 Card: Pro */}
+                  <div className="grid-card team-panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px', marginBottom: '4px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-primary)' }}></span>
+                        Team 1 (Pro)
+                      </h4>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '10px' }}>
+                        {debateParticipants.filter(p => p.team === 1).length} Members
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                      {debateParticipants.filter(p => p.team === 1).length === 0 ? (
+                        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px', color: 'var(--text-secondary)', fontSize: '12px', fontStyle: 'italic' }}>
+                          No members assigned
+                        </div>
+                      ) : (
+                        debateParticipants.filter(p => p.team === 1).map((member, idx) => (
+                          <div key={idx} className="member-item-card" style={{
+                            background: 'rgba(255,255,255,0.01)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '700', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                {member.name} {member.isUser && <span style={{ fontSize: '9px', color: 'var(--accent-primary)', fontWeight: 'bold' }}>(You)</span>}
+                              </span>
+                              
+                              {member.isUser ? (
+                                <span className={`media-badge ${userMedia.mic ? 'active' : ''}`} style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: userMedia.mic ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: userMedia.mic ? '#10b981' : '#ef4444' }}>
+                                  {userMedia.mic ? 'Mic Active' : 'Muted'}
+                                </span>
+                              ) : (
+                                <span style={{ display: 'flex', gap: '3px' }}>
+                                  {blockedStates[member.name]?.voice && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Muted</span>}
+                                  {blockedStates[member.name]?.video && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Cam</span>}
+                                </span>
+                              )}
                             </div>
-                          )}
-                          <div className="bubble-body" style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                            {isBlocked ? (
-                              <span style={{ fontStyle: 'italic', opacity: 0.6 }}>🚫 [Content hidden - participant text is muted]</span>
-                            ) : msg.isAbusive ? (
-                              <span style={{ color: '#ef4444', fontWeight: '500' }}>{msg.body}</span>
+
+                            <div className="video-viewport" style={{ height: '110px', position: 'relative', borderRadius: '6px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {member.isUser ? (
+                                userMedia.camera ? (
+                                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ fontSize: '24px' }}>👤</div>
+                                )
+                              ) : (
+                                blockedStates[member.name]?.video ? (
+                                  <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '4px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '14px' }}>🚫</span>
+                                    <span style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '2px' }}>BLOCKED</span>
+                                  </div>
+                                ) : (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '24px' }}>{member.avatar}</div>
+                                    {!blockedStates[member.name]?.voice && (
+                                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '4px', height: '14px' }}>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              )}
+
+                              {floatingStickers.filter(s => s.sender === (member.isUser ? 'You' : member.name)).map(st => (
+                                <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '28px', animation: 'floatUp 2s ease-in-out forwards' }}>
+                                  {st.emoji}
+                                </div>
+                              ))}
+                            </div>
+
+                            {member.isUser ? (
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.mic ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, mic: !prev.mic }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  🎤 {userMedia.mic ? 'Mic On' : 'Mic Off'}
+                                </button>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.camera ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, camera: !prev.camera }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  📷 {userMedia.camera ? 'Cam On' : 'Cam Off'}
+                                </button>
+                              </div>
                             ) : (
-                              msg.body
+                              <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "voice")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.voice ? 'Unmute' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "text")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.text ? 'Show' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "video")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.video ? 'Show' : 'Hide'}
+                                </button>
+                              </div>
                             )}
                           </div>
-                          
-                          {/* Alert notification overlay for abusive text flag */}
-                          {msg.isAbusive && !isBlocked && (
-                            <div style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '2px 6px', borderRadius: '4px', display: 'inline-block', marginTop: '6px' }}>
-                              ⚠️ Reported for abuse. Click Mute Text or Hide Video above to restrict.
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Team 2 Card: Con */}
+                  <div className="grid-card team-panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px', marginBottom: '4px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#f43f5e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#f43f5e' }}></span>
+                        Team 2 (Con)
+                      </h4>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '10px' }}>
+                        {debateParticipants.filter(p => p.team === 2).length} Members
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                      {debateParticipants.filter(p => p.team === 2).length === 0 ? (
+                        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px', color: 'var(--text-secondary)', fontSize: '12px', fontStyle: 'italic' }}>
+                          No members assigned
+                        </div>
+                      ) : (
+                        debateParticipants.filter(p => p.team === 2).map((member, idx) => (
+                          <div key={idx} className="member-item-card" style={{
+                            background: 'rgba(255,255,255,0.01)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '700', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                {member.name} {member.isUser && <span style={{ fontSize: '9px', color: 'var(--accent-primary)', fontWeight: 'bold' }}>(You)</span>}
+                              </span>
+                              
+                              {member.isUser ? (
+                                <span className={`media-badge ${userMedia.mic ? 'active' : ''}`} style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: userMedia.mic ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: userMedia.mic ? '#10b981' : '#ef4444' }}>
+                                  {userMedia.mic ? 'Mic Active' : 'Muted'}
+                                </span>
+                              ) : (
+                                <span style={{ display: 'flex', gap: '3px' }}>
+                                  {blockedStates[member.name]?.voice && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Muted</span>}
+                                  {blockedStates[member.name]?.video && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Cam</span>}
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
 
-                  {/* Sticker tray selector */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Send Sticker:</span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {["🚀", "💡", "🔥", "👏", "🤔", "👑"].map(emoji => (
-                        <button 
-                          key={emoji} 
-                          onClick={() => handleSendSticker(emoji)}
-                          style={{ fontSize: '20px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'transform 0.1s' }}
-                          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
+                            <div className="video-viewport" style={{ height: '110px', position: 'relative', borderRadius: '6px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {member.isUser ? (
+                                userMedia.camera ? (
+                                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ fontSize: '24px' }}>👤</div>
+                                )
+                              ) : (
+                                blockedStates[member.name]?.video ? (
+                                  <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '4px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '14px' }}>🚫</span>
+                                    <span style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '2px' }}>BLOCKED</span>
+                                  </div>
+                                ) : (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '24px' }}>{member.avatar}</div>
+                                    {!blockedStates[member.name]?.voice && (
+                                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '4px', height: '14px' }}>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              )}
+
+                              {floatingStickers.filter(s => s.sender === (member.isUser ? 'You' : member.name)).map(st => (
+                                <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '28px', animation: 'floatUp 2s ease-in-out forwards' }}>
+                                  {st.emoji}
+                                </div>
+                              ))}
+                            </div>
+
+                            {member.isUser ? (
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.mic ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, mic: !prev.mic }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  🎤 {userMedia.mic ? 'Mic On' : 'Mic Off'}
+                                </button>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.camera ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, camera: !prev.camera }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  📷 {userMedia.camera ? 'Cam On' : 'Cam Off'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "voice")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.voice ? 'Unmute' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "text")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.text ? 'Show' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "video")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.video ? 'Show' : 'Hide'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
-                  {/* Message input bar */}
-                  <form onSubmit={handleSendDebateArgument} style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <input 
-                      type="text" 
-                      value={debateInput}
-                      onChange={(e) => setDebateInput(e.target.value)}
-                      placeholder="Write your viewpoint here (min 10 characters)..." 
-                      style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                    />
-                    <button type="submit" className="btn btn-primary">Send Point</button>
-                  </form>
-                </div>
-              </div>
+                  {/* Team 3 Card: Neutral */}
+                  <div className="grid-card team-panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--bg-sidebar)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px', marginBottom: '4px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#eab308', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#eab308' }}></span>
+                        Team 3 (Neutral)
+                      </h4>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '10px' }}>
+                        {debateParticipants.filter(p => p.team === 3).length} Members
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                      {debateParticipants.filter(p => p.team === 3).length === 0 ? (
+                        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px', color: 'var(--text-secondary)', fontSize: '12px', fontStyle: 'italic' }}>
+                          No members assigned
+                        </div>
+                      ) : (
+                        debateParticipants.filter(p => p.team === 3).map((member, idx) => (
+                          <div key={idx} className="member-item-card" style={{
+                            background: 'rgba(255,255,255,0.01)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '700', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                {member.name} {member.isUser && <span style={{ fontSize: '9px', color: 'var(--accent-primary)', fontWeight: 'bold' }}>(You)</span>}
+                              </span>
+                              
+                              {member.isUser ? (
+                                <span className={`media-badge ${userMedia.mic ? 'active' : ''}`} style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: userMedia.mic ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: userMedia.mic ? '#10b981' : '#ef4444' }}>
+                                  {userMedia.mic ? 'Mic Active' : 'Muted'}
+                                </span>
+                              ) : (
+                                <span style={{ display: 'flex', gap: '3px' }}>
+                                  {blockedStates[member.name]?.voice && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🔇 Muted</span>}
+                                  {blockedStates[member.name]?.video && <span style={{ fontSize: '8px', padding: '1px 3px', borderRadius: '2px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>🚫 Cam</span>}
+                                </span>
+                              )}
+                            </div>
 
-              <div className="debate-evaluator-column">
-                <div className="grid-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <h3>AI Evaluation & Scores</h3>
-                  <p className="subtitle">Scores update instantly when you submit debate arguments.</p>
+                            <div className="video-viewport" style={{ height: '110px', position: 'relative', borderRadius: '6px', background: '#090d16', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {member.isUser ? (
+                                userMedia.camera ? (
+                                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ fontSize: '24px' }}>👤</div>
+                                )
+                              ) : (
+                                blockedStates[member.name]?.video ? (
+                                  <div className="blocked-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.15)', backdropFilter: 'blur(6px)', color: '#f87171', padding: '4px', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '14px' }}>🚫</span>
+                                    <span style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '2px' }}>BLOCKED</span>
+                                  </div>
+                                ) : (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '24px' }}>{member.avatar}</div>
+                                    {!blockedStates[member.name]?.voice && (
+                                      <div className="voice-wave-bar" style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '4px', height: '14px' }}>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                        <div className="wave-bar" style={{ width: '2px', height: '4px' }}></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              )}
+
+                              {floatingStickers.filter(s => s.sender === (member.isUser ? 'You' : member.name)).map(st => (
+                                <div key={st.id} className="floating-sticker-particle" style={{ position: 'absolute', fontSize: '28px', animation: 'floatUp 2s ease-in-out forwards' }}>
+                                  {st.emoji}
+                                </div>
+                              ))}
+                            </div>
+
+                            {member.isUser ? (
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.mic ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, mic: !prev.mic }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  🎤 {userMedia.mic ? 'Mic On' : 'Mic Off'}
+                                </button>
+                                <button 
+                                  className={`btn btn-sm ${userMedia.camera ? 'btn-primary' : 'btn-secondary'}`}
+                                  onClick={() => setUserMedia(prev => ({ ...prev, camera: !prev.camera }))}
+                                  style={{ padding: '3px 8px', fontSize: '10px', flex: 1 }}
+                                >
+                                  📷 {userMedia.camera ? 'Cam On' : 'Cam Off'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', marginTop: '2px' }}>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.voice ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "voice")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.voice ? 'Unmute' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.text ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "text")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.text ? 'Show' : 'Mute'}
+                                </button>
+                                <button className={`btn btn-xs ${blockedStates[member.name]?.video ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleBlockState(member.name, "video")} style={{ fontSize: '8px', padding: '2px 4px', flex: 1 }}>
+                                  {blockedStates[member.name]?.video ? 'Show' : 'Hide'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Bottom: Main Discussion Chat Column & AI Score Evaluator Column */}
+                <div className="debate-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px' }}>
                   
-                  {debateFeedback ? (
-                    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-                      {[
-                        { label: 'Clarity & Formulation', val: debateFeedback.clarity, id: 'clarity' },
-                        { label: 'Structured Thinking', val: debateFeedback.thinking, id: 'thinking' },
-                        { label: 'Persuasiveness', val: debateFeedback.persuasion, id: 'persuasion' },
-                        { label: 'Delivery & Confidence', val: debateFeedback.confidence, id: 'confidence' }
-                      ].map(metric => (
-                        <div key={metric.id}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                            <span>{metric.label}</span>
-                            <strong style={{ color: 'var(--accent-primary)' }}>{metric.val}%</strong>
+                  <div className="debate-chat-column" style={{ display: 'flex', flexDirection: 'column', height: '620px' }}>
+                    <div className="grid-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px' }}>
+                      
+                      {/* Topic Selector & Simulation Controls Panel */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <label htmlFor="debate-topic-selector" style={{ fontWeight: '600', whiteSpace: 'nowrap' }}>Debate Focus:</label>
+                          <select 
+                            id="debate-topic-selector" 
+                            disabled={inDebate || isBreakActive}
+                            style={{ flex: 1, padding: '8px', borderRadius: '8px', background: 'var(--bg-sidebar)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                            value={selectedDebateTopicIndex}
+                            onChange={(e) => handleSelectTopic(Number(e.target.value))}
+                          >
+                            {currentStreamDb.debateTopics.map((topic, idx) => (
+                              <option key={idx} value={idx}>{topic}</option>
+                            ))}
+                          </select>
+                          <button className="btn btn-secondary btn-sm" disabled={inDebate || isBreakActive} onClick={() => handleSelectTopic(selectedDebateTopicIndex)}>
+                            Reset
+                          </button>
+                          
+                          {/* Test Safety Button */}
+                          <button className="btn btn-secondary btn-sm" disabled={isBreakActive} onClick={handleSimulateAbuse} style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2' }}>
+                            ⚠️ Safety Test
+                          </button>
+                        </div>
+
+                        {/* Simulation Panel */}
+                        {inDebate && !isBreakActive && (
+                          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '10px 14px', borderRadius: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              🎮 Simulation Tools:
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn btn-secondary btn-xs" 
+                                disabled={simStage !== 0} 
+                                onClick={handleSimulateThreeUsers}
+                                style={{ background: simStage === 0 ? 'rgba(6, 182, 212, 0.1)' : 'transparent', borderColor: simStage === 0 ? 'var(--accent-primary)' : 'var(--border-color)', color: simStage === 0 ? 'var(--accent-primary)' : 'var(--text-secondary)' }}
+                              >
+                                👥 Simulate 3 Users Join
+                              </button>
+                              <button 
+                                className="btn btn-secondary btn-xs" 
+                                disabled={simStage !== 1} 
+                                onClick={handleSimulateTwoMoreUsers}
+                                style={{ background: simStage === 1 ? 'rgba(6, 182, 212, 0.1)' : 'transparent', borderColor: simStage === 1 ? 'var(--accent-primary)' : 'var(--border-color)', color: simStage === 1 ? 'var(--accent-primary)' : 'var(--text-secondary)' }}
+                              >
+                                👥 Simulate 2 More Users Join
+                              </button>
+                              <button 
+                                className="btn btn-action btn-xs" 
+                                disabled={isJudging}
+                                onClick={handleEndDebateAndJudge}
+                                style={{ background: 'var(--accent-gradient)', border: 'none', color: '#000', fontWeight: 'bold' }}
+                              >
+                                🏆 AI Judge Now
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${metric.val}%`, background: 'var(--accent-gradient)', transition: 'width 0.6s ease' }}></div>
+                        )}
+                      </div>
+
+                      {/* Warning banner if abusive content detected */}
+                      {debateWarning && (
+                        <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.15)', border: '1px dashed #ef4444', borderRadius: '6px', fontSize: '12px', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>🚨 {debateWarning}</span>
+                          <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setDebateWarning(null)}>Dismiss</button>
+                        </div>
+                      )}
+
+                      {/* Chat Log Container */}
+                      <div 
+                        className="chat-log-container" 
+                        id="debate-log-container"
+                        style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' }}
+                      >
+                        {(debateHistory[activeDebateTopic] || []).map((msg, idx) => {
+                          let bubbleClass = "bot-bubble";
+                          if (msg.sender === "You") bubbleClass = "user-bubble";
+                          if (msg.sender === "System") bubbleClass = "system-bubble";
+                          
+                          // Check if text is blocked
+                          const isBlocked = blockedStates[msg.sender]?.text;
+                          
+                          return (
+                            <div className={`chat-bubble ${bubbleClass}`} key={idx} style={{ position: 'relative' }}>
+                              {msg.sender !== "System" && (
+                                <div className="bubble-sender" style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '2px', color: msg.sender === 'You' ? '#a855f7' : 'var(--accent-primary)' }}>
+                                  {msg.sender}
+                                </div>
+                              )}
+                              <div className="bubble-body" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+                                {isBlocked ? (
+                                  <span style={{ fontStyle: 'italic', opacity: 0.6 }}>🚫 [Content hidden - participant text is muted]</span>
+                                ) : msg.isAbusive ? (
+                                  <span style={{ color: '#ef4444', fontWeight: '500' }}>{msg.body}</span>
+                                ) : (
+                                  msg.body
+                                )}
+                              </div>
+                              
+                              {msg.isAbusive && !isBlocked && (
+                                <div style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '2px 6px', borderRadius: '4px', display: 'inline-block', marginTop: '6px' }}>
+                                  ⚠️ Reported for abuse. Click Mute Text or Hide Video above to restrict.
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Sticker tray selector */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Send Sticker:</span>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {["🚀", "💡", "🔥", "👏", "🤔", "👑"].map(emoji => (
+                            <button 
+                              key={emoji} 
+                              disabled={isBreakActive || isJudging}
+                              onClick={() => handleSendSticker(emoji)}
+                              style={{ fontSize: '20px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'transform 0.1s', opacity: (isBreakActive || isJudging) ? 0.4 : 1 }}
+                              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Message input bar */}
+                      <form onSubmit={handleSendDebateArgument} style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <input 
+                          type="text" 
+                          value={debateInput}
+                          onChange={(e) => setDebateInput(e.target.value)}
+                          disabled={isBreakActive || isJudging}
+                          placeholder={isBreakActive ? "Debate in break phase - next round starting soon..." : "Write your viewpoint here (min 10 characters)..."} 
+                          style={{ flex: 1, padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', opacity: (isBreakActive || isJudging) ? 0.6 : 1 }}
+                        />
+                        <button type="submit" className="btn btn-primary" disabled={isBreakActive || isJudging}>Send Point</button>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="debate-evaluator-column">
+                    <div className="grid-card" style={{ height: '100%', minHeight: '350px', display: 'flex', flexDirection: 'column', padding: '20px' }}>
+                      <h3>AI Evaluation & Scores</h3>
+                      <p className="subtitle">Scores update instantly when you submit debate arguments.</p>
+                      
+                      {isJudging ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, textAlign: 'center', gap: '16px' }}>
+                          <div className="spinner" style={{ width: '40px', height: '40px', borderRadius: '50%', border: '3px solid rgba(6,182,212,0.1)', borderTopColor: 'var(--accent-primary)', animation: 'spin 1s linear infinite' }}></div>
+                          <div>
+                            <strong style={{ color: 'var(--accent-primary)' }}>AI Judging in Progress...</strong>
+                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Analyzing argument depth, structure, transition markers, and team performance metrics.</p>
                           </div>
                         </div>
-                      ))}
+                      ) : judgeResult ? (
+                        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+                          <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px' }}>
+                            <div style={{ fontSize: '32px' }}>🏆</div>
+                            <h4 style={{ margin: '8px 0 4px 0', color: '#10b981', fontWeight: 'bold' }}>
+                              Team {judgeResult.winningTeam} Wins!
+                            </h4>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              AI Judicial Verdict & Rewards
+                            </span>
+                          </div>
+                          
+                          <div style={{ padding: '14px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '10px', fontSize: '13px', lineHeight: '1.5' }}>
+                            <strong style={{ color: 'var(--accent-primary)', display: 'block', marginBottom: '6px' }}>Judicial Critique:</strong>
+                            {judgeResult.verdict}
+                          </div>
 
-                      <div className="feedback-grade-card" style={{ marginTop: '20px', padding: '16px', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                        <h4 style={{ color: 'var(--accent-primary)' }}>AI Analytical Review</h4>
-                        <p style={{ fontSize: '13px', marginTop: '8px', lineHeight: '1.4' }}>{debateFeedback.text}</p>
-                        <div className="feedback-stars" style={{ color: '#fbbf24', marginTop: '12px', fontWeight: 'bold' }}>★★★★☆ (Grade A-)</div>
-                      </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '10px', background: 'rgba(253, 224, 71, 0.08)', border: '1px solid rgba(253, 224, 71, 0.2)', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '18px' }}>🪙</span>
+                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#fbbf24' }}>
+                              Received +{judgeResult.rewardAwarded} Coins Reward!
+                            </span>
+                          </div>
+                        </div>
+                      ) : debateFeedback ? (
+                        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+                          {[
+                            { label: 'Clarity & Formulation', val: debateFeedback.clarity, id: 'clarity' },
+                            { label: 'Structured Thinking', val: debateFeedback.thinking, id: 'thinking' },
+                            { label: 'Persuasiveness', val: debateFeedback.persuasion, id: 'persuasion' },
+                            { label: 'Delivery & Confidence', val: debateFeedback.confidence, id: 'confidence' }
+                          ].map(metric => (
+                            <div key={metric.id}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                                <span>{metric.label}</span>
+                                <strong style={{ color: 'var(--accent-primary)' }}>{metric.val}%</strong>
+                              </div>
+                              <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${metric.val}%`, background: 'var(--accent-gradient)', transition: 'width 0.6s ease' }}></div>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="feedback-grade-card" style={{ marginTop: '20px', padding: '16px', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                            <h4 style={{ color: 'var(--accent-primary)' }}>AI Analytical Review</h4>
+                            <p style={{ fontSize: '13px', marginTop: '8px', lineHeight: '1.4' }}>{debateFeedback.text}</p>
+                            <div className="feedback-stars" style={{ color: '#fbbf24', marginTop: '12px', fontWeight: 'bold' }}>★★★★☆ (Grade A-)</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, opacity: 0.6, textAlign: 'center', padding: '24px' }}>
+                          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📊</div>
+                          <p style={{ fontSize: '13px' }}>Your constructive criticism and logic breakdown will appear here post contribution.</p>
+                        </div>
+                      )}
+
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, opacity: 0.6, textAlign: 'center', padding: '24px' }}>
-                      <div style={{ fontSize: '40px', marginBottom: '12px' }}>📊</div>
-                      <p style={{ fontSize: '13px' }}>Your constructive criticism and logic breakdown will appear here post contribution.</p>
-                    </div>
-                  )}
+                  </div>
 
                 </div>
-              </div>
-
-            </div>
+              </>
+            )}
           </section>
         )}
 
