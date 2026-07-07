@@ -479,21 +479,40 @@ export default function AuraDashboard() {
     localStorage.setItem('theme-mode', themeMode);
   }, [user.stream, themeMode]);
 
-  // --- Webcam Access & Stream Setup ---
+  // --- Webcam & Microphone Access & Stream Setup ---
   useEffect(() => {
-    if (userMedia.camera) {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    const constraints = {
+      video: userMedia.camera,
+      audio: userMedia.mic
+    };
+
+    if (constraints.video || constraints.audio) {
+      navigator.mediaDevices.getUserMedia(constraints)
         .then(stream => {
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
           streamRef.current = stream;
           if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-            localVideoRef.current.play().catch(err => console.warn("Video play check failed:", err));
+            localVideoRef.current.srcObject = constraints.video ? stream : null;
+            if (constraints.video) {
+              localVideoRef.current.play().catch(err => console.warn("Video play check failed:", err));
+            }
           }
         })
         .catch(err => {
-          console.warn("Camera access denied/unavailable:", err);
-          showToast("Camera Permission Check", "No camera detected or access denied. Rendering custom visual avatar.");
-          setUserMedia(prev => ({ ...prev, camera: false }));
+          console.warn("Media access denied/unavailable:", err);
+          if (constraints.video && constraints.audio) {
+            showToast("Media Access Failed", "Unable to access camera or microphone.");
+          } else if (constraints.video) {
+            showToast("Camera Access Failed", "Unable to access camera. Rendering custom visual avatar.");
+          } else {
+            showToast("Microphone Access Failed", "Unable to access microphone.");
+          }
+          setUserMedia(prev => ({
+            mic: constraints.audio ? false : prev.mic,
+            camera: constraints.video ? false : prev.camera
+          }));
         });
     } else {
       if (streamRef.current) {
@@ -505,11 +524,9 @@ export default function AuraDashboard() {
       }
     }
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
+      // Clean up handled in change triggers
     };
-  }, [userMedia.camera]);
+  }, [userMedia.camera, userMedia.mic]);
 
   // --- Dynamic Level Mapping ---
   const levelData = useMemo(() => {
